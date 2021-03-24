@@ -21,6 +21,7 @@ const CLIENT_ID =
 function App() {
   const [accessToken, setAccessToken] = useState(null);
   const [events, setEvents] = useState(null);
+  const [selectedEventIds, setSelectedEventIds] = useState([]);
   const [dateStart, setDateStart] = useState(
     DateTime.now().startOf("week").toISO()
   );
@@ -29,7 +30,6 @@ function App() {
   useEffect(() => {
     const at = sessionStorage.getItem("accessToken");
     if (at && at !== accessToken) {
-      console.log(`Access token from LocalStorage: ${at}`);
       setAccessToken(at);
     }
   }, [accessToken]);
@@ -39,12 +39,18 @@ function App() {
       return;
     }
     const email = sessionStorage.getItem("email");
-    getEvents(accessToken, dateStart, dateEnd, email).then(setEvents, (err) => {
-      console.log(err);
-      message.error("Error loading events");
-      setAccessToken(null);
-      sessionStorage.removeItem("accessToken");
-    });
+    getEvents(accessToken, dateStart, dateEnd, email).then(
+      (events) => {
+        setEvents(events);
+        setSelectedEventIds(events.map((e) => e.id));
+      },
+      (err) => {
+        console.log(err);
+        message.error("Error loading events");
+        setAccessToken(null);
+        sessionStorage.removeItem("accessToken");
+      }
+    );
   }, [accessToken, dateStart, dateEnd]);
 
   const onSuccess = (data) => {
@@ -68,28 +74,30 @@ function App() {
     setDateEnd(dateStrings[1]);
   };
 
-  const onDateLeft = () => {
+  const shiftDates = (direction) => {
     const ds = DateTime.fromISO(dateStart);
     const de = DateTime.fromISO(dateEnd);
     const duration = Interval.fromDateTimes(ds, de).toDuration("day");
-    setDateStart(ds.minus(duration).toISO());
-    setDateEnd(de.minus(duration).toISO());
+    setDateStart(ds[direction](duration).toISO());
+    setDateEnd(de[direction](duration).toISO());
+  };
+
+  const onDateLeft = () => {
+    shiftDates("minus");
   };
 
   const onDateRight = () => {
-    const ds = DateTime.fromISO(dateStart);
-    const de = DateTime.fromISO(dateEnd);
-    const duration = Interval.fromDateTimes(ds, de).toDuration("day");
-    setDateStart(DateTime.fromISO(dateStart).plus(duration).toISO());
-    setDateEnd(DateTime.fromISO(dateEnd).plus(duration).toISO());
+    shiftDates("plus");
   };
 
-  const total = events
-    ? events
-        .map((event) => event.duration)
-        .reduce((acc, val) => acc + val)
-        .toFixed(2)
-    : 0;
+  const filteredEvents = events
+    ? events.filter((e) => selectedEventIds.includes(e.id))
+    : [];
+
+  const total = filteredEvents
+    .map((event) => event.duration)
+    .reduce((acc, val) => acc + val)
+    .toFixed(2);
 
   return (
     <ConfigProvider locale={plPL}>
@@ -141,8 +149,12 @@ function App() {
           {accessToken && events && (
             <>
               <Title>Total: {total}h</Title>
-              <EventsChart events={events} />
-              <EventsTable events={events} />
+              <EventsChart events={filteredEvents} />
+              <EventsTable
+                events={events}
+                selectedEventIds={selectedEventIds}
+                setSelectedEventIds={setSelectedEventIds}
+              />
               <pre>
                 {events
                   .map((event) => Object.values(event).join(";"))
