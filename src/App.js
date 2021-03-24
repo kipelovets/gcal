@@ -27,7 +27,7 @@ function App() {
   const [dateEnd, setDateEnd] = useState(DateTime.now().endOf("week").toISO());
 
   useEffect(() => {
-    const at = localStorage.getItem("accessToken");
+    const at = sessionStorage.getItem("accessToken");
     if (at && at !== accessToken) {
       console.log(`Access token from LocalStorage: ${at}`);
       setAccessToken(at);
@@ -38,17 +38,19 @@ function App() {
     if (!accessToken) {
       return;
     }
-    const email = localStorage.getItem("email");
+    const email = sessionStorage.getItem("email");
     getEvents(accessToken, dateStart, dateEnd, email).then(setEvents, (err) => {
       console.log(err);
       message.error("Error loading events");
+      setAccessToken(null);
+      sessionStorage.removeItem("accessToken");
     });
   }, [accessToken, dateStart, dateEnd]);
 
   const onSuccess = (data) => {
-    localStorage.setItem("email", data.profileObj.email);
+    sessionStorage.setItem("email", data.profileObj.email);
     const at = data.accessToken;
-    localStorage.setItem("accessToken", at);
+    sessionStorage.setItem("accessToken", at);
     setAccessToken(at);
   };
   const onFailure = (data) => {
@@ -93,6 +95,17 @@ function App() {
     <ConfigProvider locale={plPL}>
       <Layout>
         <Content style={{ padding: "50px" }}>
+          <div>
+            <Title>Google Calendar meetings stats</Title>
+            <p>
+              This web app lets you see some stats for the amount of time you
+              spend on meetings daily and weekly
+            </p>
+            <p>
+              The data is fetched from Google Calendar API, to access it please
+              click the Login button and sign into your Google account.
+            </p>
+          </div>
           {!accessToken && (
             <GoogleLogin
               clientId={CLIENT_ID}
@@ -116,7 +129,7 @@ function App() {
               <Button
                 type="danger"
                 onClick={() => {
-                  localStorage.removeItem("accessToken");
+                  sessionStorage.removeItem("accessToken");
                   setAccessToken(null);
                 }}
               >
@@ -125,7 +138,7 @@ function App() {
             </>
           )}
 
-          {events && (
+          {accessToken && events && (
             <>
               <Title>Total: {total}h</Title>
               <EventsChart events={events} />
@@ -137,6 +150,22 @@ function App() {
               </pre>
             </>
           )}
+
+          <div>
+            <Title>Privacy Policy</Title>
+            <p>
+              This app uses Google Calendar API to fetch the events data from
+              your primary Google calendar. This happens directly in your
+              browser, there are no external services or backend servers
+              involved.
+            </p>
+            <p>
+              The data fetched from Google Calendar API is only used in this
+              browser tab and is not saved anywhere outside of it, not send to
+              any third-party services. After you close this tab, the data
+              cached by this page is deleted from your computer.
+            </p>
+          </div>
         </Content>
       </Layout>
     </ConfigProvider>
